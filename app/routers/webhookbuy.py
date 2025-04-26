@@ -50,6 +50,7 @@ async def webhook(request: Request):
             symbol.upper(),
             cmc.format_number_m(market_cap),
             cmc.format_number_m(volume_24h),
+            cmc.coifecent(market_cap, volume_24h),
             'buy',
             close,
             datetime.now(pytz.timezone('Europe/Moscow')).strftime("%Y-%m-%d %H:%M:%S"),
@@ -57,6 +58,18 @@ async def webhook(request: Request):
         ])
 
         row_index = len(sheet.get_all_values())
+        sheet.format(f"B{row_index}:C{row_index}", {
+            "numberFormat": {
+                "type": "NUMBER",
+                "pattern": "#,##0.00"
+            }
+        })
+        sheet.format(f"D{row_index}", {
+            "numberFormat": {
+                "type": "NUMBER",
+                "pattern": "#,##0.00"
+            }
+        })
         task = asyncio.create_task(
             update_price_periodically(sheet, row_index, symbol, float(current_price), "buy")
         )

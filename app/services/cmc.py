@@ -123,14 +123,15 @@ class CoinMarketCapService:
     def format_number_m(value: Optional[float]) -> str:
         if value is None:
             return "N/A"
+        return f"{value / 1_000_000:.2f}".replace(".00", "")
 
-        sign = '-' if value < 0 else ''
-        abs_value = abs(value)
+    @staticmethod
+    def coifecent(market_cap: Optional[float], volume_24h: Optional[float]) -> Optional[float]:
+        if None in (market_cap, volume_24h) or volume_24h == 0:
+            return None
 
-        formatted_value = abs_value / 1_000_000
-
-        if formatted_value.is_integer():
-            return f"{sign}{int(formatted_value)}m$"
-        else:
-            # Оставляем 1 знак после запятой и убираем .0 если нужно
-            return f"{sign}{formatted_value:.2f}m$".replace(".0", "")
+        try:
+            return market_cap / volume_24h
+        except Exception as e:
+            logger.error(f"Ошибка расчета коэффициента: {e}")
+            return None

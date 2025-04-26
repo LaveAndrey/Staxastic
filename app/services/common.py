@@ -81,7 +81,7 @@ async def update_price_periodically(sheet, row_index: int, symbol: str, entry_pr
     moscow_tz = pytz.timezone('Europe/Moscow')
     try:
         # Получаем дату и время из правильной колонки (6-я колонка - индекс 5)
-        datetime_str = sheet.cell(row_index, 6).value  # Колонка с датой/временем
+        datetime_str = sheet.cell(row_index, 7).value  # Колонка с датой/временем
 
         # Проверяем, что значение является строкой с датой
         if not isinstance(datetime_str, str) or len(datetime_str) < 10:
@@ -117,7 +117,7 @@ async def update_price_periodically(sheet, row_index: int, symbol: str, entry_pr
                 else:
                     change_pct = ((entry_price - current_price) / entry_price) * 100
 
-                col = 7 + intervals.index((name, delay)) * 2
+                col = 8 + intervals.index((name, delay)) * 2
                 sheet.update_cell(row_index, col, current_price)
                 sheet.update_cell(row_index, col + 1, change_pct / 100)
 
