@@ -22,11 +22,12 @@ async def webhook(request: Request):
         if not hasattr(request.app.state, 'google_sheets'):
             raise HTTPException(status_code=503, detail="Service unavailable")
 
-        client = request.app.state.google_sheets
-        sheet = client.open_by_key(SPREADSHEET_ID).sheet1
         data = await request.json()
 
         await asyncio.sleep(5)
+
+        client = request.app.state.google_sheets
+        sheet = client.open_by_key(SPREADSHEET_ID).sheet1
 
         ticker = data.get('ticker', 'N/A')
         close = data.get('close', 'N/A')
