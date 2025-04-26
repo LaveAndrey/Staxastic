@@ -61,7 +61,13 @@ async def webhook(request: Request):
         ])
 
         row_index = len(sheet.get_all_values())
-        sheet.format(f"B{row_index}:C{row_index}", {
+        sheet.format(f"B{row_index}", {
+            "numberFormat": {
+                "type": "NUMBER",
+                "pattern": "#,##0.00"
+            }
+        })
+        sheet.format(f"C{row_index}", {
             "numberFormat": {
                 "type": "NUMBER",
                 "pattern": "#,##0.00"
