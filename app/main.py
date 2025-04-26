@@ -129,14 +129,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     lifespan=lifespan,
-    title="TradingView Webhook Processor",
-    description="API для обработки вебхуков TradingView с интеграцией Google Sheets",
-    version="1.0.0"
 )
 
 # Подключение роутеров
-app.include_router(routerbuy, prefix="/api/v1")
-app.include_router(routersell, prefix="/api/v1")
+app.include_router(routerbuy)
+app.include_router(routersell)
 
 if __name__ == '__main__':
     import uvicorn
