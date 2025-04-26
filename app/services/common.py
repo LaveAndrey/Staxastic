@@ -88,7 +88,7 @@ async def update_price_periodically(sheet, row_index: int, symbol: str, entry_pr
 
     try:
         entry_time = moscow_tz.localize(datetime.strptime(
-            sheet.cell(row_index, 4).value, "%Y-%m-%d %H:%M:%S"
+            sheet.cell(row_index, 5).value, "%Y-%m-%d %H:%M:%S"
         ))
 
         for name, delay in intervals:
