@@ -12,31 +12,68 @@ BYBIT_API_URL = "https://api.bybit.com/v5/market/tickers"
 
 
 async def get_bybit_price(symbol: str) -> float:
-    """Получаем текущую цену с Bybit"""
+    """Получаем текущую цену с Bybit с улучшенной обработкой ошибок"""
     try:
         clean_symbol = symbol.upper().strip()
+        if not clean_symbol:
+            raise ValueError("Empty symbol provided")
+
         trading_pair = f"{clean_symbol}USDT"
 
         response = requests.get(
             BYBIT_API_URL,
-            params={"category": "linear", "symbol": trading_pair},
+            params={
+                "category": "linear",
+                "symbol": trading_pair
+            },
             timeout=10
         )
         response.raise_for_status()
 
         data = response.json()
-        if not isinstance(data, dict) or 'result' not in data or not data['result']:
-            raise ValueError("Invalid API response structure")
 
-        return float(data["result"]["list"][0]["lastPrice"])
+        # Улучшенная проверка структуры ответа
+        if not isinstance(data, dict):
+            raise ValueError("Invalid API response: not a dictionary")
+
+        if 'result' not in data or not isinstance(data['result'], dict):
+            raise ValueError("Invalid API response: missing or invalid 'result'")
+
+        if 'list' not in data['result'] or not isinstance(data['result']['list'], list):
+            raise ValueError("Invalid API response: missing or invalid 'list'")
+
+        if not data['result']['list']:
+            raise ValueError(f"No trading data available for {trading_pair}")
+
+        # Получаем первый элемент списка
+        ticker = data["result"]["list"][0]
+
+        if 'lastPrice' not in ticker:
+            raise ValueError("Ticker data missing 'lastPrice' field")
+
+        price = float(ticker["lastPrice"])
+        logger.info(f"Успешно получена цена для {clean_symbol}: {price}")
+        return price
 
     except requests.exceptions.HTTPError as e:
         error_detail = f"{e.response.status_code} - {e.response.text}" if e.response else str(e)
         logger.error(f"Ошибка запроса к Bybit API: {error_detail}")
-        raise HTTPException(status_code=502, detail=f"Bybit API error: {error_detail}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Bybit API error: {error_detail}"
+        )
+    except ValueError as e:
+        logger.error(f"Ошибка обработки данных Bybit: {str(e)}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Invalid Bybit data format: {str(e)}"
+        )
     except Exception as e:
-        logger.error(f"Ошибка при получении цены с Bybit: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=503, detail="Failed to get price from Bybit")
+        logger.error(f"Неожиданная ошибка при получении цены: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail="Failed to get price from Bybit"
+        )
 
 
 async def update_price_periodically(sheet, row_index: int, symbol: str, entry_price: float, action: str):
