@@ -78,33 +78,34 @@ async def get_bybit_price(symbol: str) -> float:
 
 
 async def update_price_periodically(sheet, row_index: int, symbol: str, entry_price: float, action: str):
-    """Обновление цен через фиксированные интервалы с оптимизацией запросов"""
+    """Обновление цен через фиксированные интервалы с гарантированным сохранением"""
     moscow_tz = pytz.timezone('Europe/Moscow')
+
+    def log_update_result(response):
+        """Логирование результатов обновления"""
+        if isinstance(response, dict) and 'updatedCells' in response:
+            logger.info(f"Обновлено ячеек: {response['updatedCells']}")
+        else:
+            logger.error(f"Неожиданный ответ от Google Sheets: {response}")
+
     try:
-        # Получаем дату и время из правильной колонки
+
+        # Получаем дату и время
         datetime_str = sheet.cell(row_index, 7).value
         sleep(SHEETS_API_DELAY)
 
-        if not isinstance(datetime_str, str) or len(datetime_str) < 10:
-            raise ValueError(f"Invalid datetime format: {datetime_str}")
+        if not isinstance(datetime_str, str):
+            raise ValueError(f"Некорректный формат даты: {datetime_str}")
 
         entry_time = moscow_tz.localize(datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S"))
 
         intervals = [
-            ('1h', 60 * 60),
-            ('2h', 2 * 60 * 60),
-            ('4h', 4 * 60 * 60),
-            ('8h', 8 * 60 * 60),
-            ('12h', 12 * 60 * 60),
-            ('1d', 24 * 60 * 60),
-            ('3d', 3 * 24 * 60 * 60),
-            ('7d', 7 * 24 * 60 * 60),
-            ('14d', 14 * 24 * 60 * 60),
-            ('30d', 30 * 24 * 60 * 60)
+            ('1h', 60 * 60), ('2h', 2 * 60 * 60),
+            ('4h', 4 * 60 * 60), ('8h', 8 * 60 * 60),
+            ('12h', 12 * 60 * 60), ('1d', 24 * 60 * 60),
+            ('3d', 3 * 24 * 60 * 60), ('7d', 7 * 24 * 60 * 60),
+            ('14d', 14 * 24 * 60 * 60), ('30d', 30 * 24 * 60 * 60)
         ]
-
-        updates = []
-        format_requests = []
 
         for name, delay in intervals:
             try:
@@ -115,62 +116,63 @@ async def update_price_periodically(sheet, row_index: int, symbol: str, entry_pr
                     logger.info(f"Ожидание {name} обновления для {symbol} (через {sleep_duration:.0f} сек)")
                     await asyncio.sleep(sleep_duration)
 
+                # Получаем текущую цену
                 current_price = await get_bybit_price(symbol)
-                change_pct = ((current_price - entry_price) / entry_price) * 100 if action.lower() == 'buy' else ((
-                                                                                                                              entry_price - current_price) / entry_price) * 100
+                if entry_price == 0:
+                    logger.error("Цена входа равна 0, пропускаем расчет")
+                    continue
 
-                col = 8 + intervals.index((name, delay)) * 2
+                # Рассчитываем изменение
+                if action.lower() == 'buy':
+                    change_pct = ((current_price - entry_price) / entry_price) * 100
+                else:
+                    change_pct = ((entry_price - current_price) / entry_price) * 100
 
-                updates.extend([
-                    {
-                        'range': gspread.utils.rowcol_to_a1(row_index, col),
-                        'values': [[current_price]]
+                change_decimal = round(change_pct / 100, 6)  # Оптимально для процентного формата
+
+                # Определяем колонки
+                interval_idx = intervals.index((name, delay))
+                price_col = 8 + interval_idx * 2
+                pct_col = price_col + 1
+
+                # Формируем запросы
+                price_cell = gspread.utils.rowcol_to_a1(row_index, price_col)
+                pct_cell = gspread.utils.rowcol_to_a1(row_index, pct_col)
+
+                # 1. Сначала устанавливаем формат
+                format_response = sheet.format(pct_cell, {
+                    "numberFormat": {
+                        "type": "PERCENT",
+                        "pattern": "#,##0.00%"
                     },
-                    {
-                        'range': gspread.utils.rowcol_to_a1(row_index, col + 1),
-                        'values': [[change_pct / 100]]
+                    "backgroundColor": {
+                        "red": 0.5 if change_pct >= 0 else 1,
+                        "green": 1 if change_pct >= 0 else 0.5,
+                        "blue": 0.5
                     }
-                ])
+                })
+                sleep(SHEETS_API_DELAY)
+                log_update_result(format_response)
 
-                col_letter = gspread.utils.rowcol_to_a1(row_index, col)[0]
-                format_requests.extend([
-                    {
-                        'range': f"{col_letter}{row_index}",
-                        'format': {
-                            'numberFormat': {'type': 'PERCENT', 'pattern': '#,##0.00%'}
-                        }
-                    },
-                    {
-                        'range': f"{col_letter}{row_index}",
-                        'format': {
-                            'backgroundColor': {
-                                'red': 0.5 if change_pct >= 0 else 1,
-                                'green': 1 if change_pct >= 0 else 0.5,
-                                'blue': 0.5
-                            }
-                        }
-                    }
-                ])
+                # 2. Затем обновляем значения
+                update_response = sheet.batch_update([{
+                    'range': price_cell,
+                    'values': [[current_price]]
+                }, {
+                    'range': pct_cell,
+                    'values': [[change_decimal]]
+                }])
+                sleep(SHEETS_API_DELAY)
+                log_update_result(update_response)
 
-                logger.info(f"Подготовлен интервал {name} для {symbol}")
+                logger.info(f"Обновлен {name} для {symbol}: цена {current_price}, изменение {change_pct:.2f}%")
 
             except Exception as e:
-                logger.error(f"Ошибка при подготовке интервала {name}: {e}")
+                logger.error(f"Ошибка при обновлении интервала {name}: {str(e)}", exc_info=True)
                 continue
 
-        # Выполняем batch-обновление с разбивкой на части (лимит Google Sheets - 10 запросов в секунду)
-        for i in range(0, len(updates), 5):
-            sheet.batch_update(updates[i:i + 5])
-            sleep(SHEETS_API_DELAY)
-
-        for i in range(0, len(format_requests), 5):
-            sheet.batch_format(format_requests[i:i + 5])
-            sleep(SHEETS_API_DELAY)
-
-        logger.info(f"Все интервалы обновлены для {symbol}")
-
     except Exception as e:
-        logger.error(f"Ошибка в update_price_periodically: {e}")
+        logger.error(f"Критическая ошибка: {str(e)}", exc_info=True)
     finally:
         if hasattr(update_price_periodically, 'update_tasks'):
             update_price_periodically.update_tasks.pop(symbol, None)
