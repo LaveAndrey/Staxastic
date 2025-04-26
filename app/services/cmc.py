@@ -118,3 +118,19 @@ class CoinMarketCapService:
 
         # Форматируем с разделителями тысяч
         return f"{int_value:,}$"  # Добавляем знак доллара
+
+    @staticmethod
+    def format_number_m(value: Optional[float]) -> str:
+        if value is None:
+            return "N/A"
+
+        sign = '-' if value < 0 else ''
+        abs_value = abs(value)
+
+        formatted_value = abs_value / 1_000_000
+
+        if formatted_value.is_integer():
+            return f"{sign}{int(formatted_value)}m$"
+        else:
+            # Оставляем 1 знак после запятой и убираем .0 если нужно
+            return f"{sign}{formatted_value:.2f}m$".replace(".0", "")

@@ -48,8 +48,8 @@ async def webhook(request: Request):
 
         sheet.append_row([
             symbol.upper(),
-            market_cap,
-            volume_24h,
+            cmc.format_number_m(market_cap),
+            cmc.format_number_m(volume_24h),
             'buy',
             close,
             datetime.now(pytz.timezone('Europe/Moscow')).strftime("%Y-%m-%d %H:%M:%S"),
