@@ -60,6 +60,7 @@ async def update_price_periodically(sheet, row_index: int, symbol: str, entry_pr
                 sleep_duration = (target_time - datetime.now(moscow_tz)).total_seconds()
 
                 if sleep_duration > 0:
+                    logger.info(f"Ожидание {name} обновления для {symbol} (через {sleep_duration:.0f} сек)")
                     await asyncio.sleep(sleep_duration)
 
                 current_price = await get_bybit_price(symbol)
@@ -79,9 +80,12 @@ async def update_price_periodically(sheet, row_index: int, symbol: str, entry_pr
                 })
                 format_cell(sheet, row_index, col + 1, change_pct)
 
+                logger.info(f"Обновлен интервал {name} для {symbol}")
             except Exception as e:
                 logger.error(f"Ошибка при обновлении интервала {name}: {e}")
                 continue
+
+        logger.info(f"Все интервалы обновлены для {symbol}")
 
     except Exception as e:
         logger.error(f"Ошибка в update_price_periodically: {e}")
