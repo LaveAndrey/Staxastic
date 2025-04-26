@@ -120,10 +120,10 @@ class CoinMarketCapService:
         return f"{int_value:,}$"  # Добавляем знак доллара
 
     @staticmethod
-    def format_number_m(value: Optional[float]) -> str:
+    def format_number_m(value: Optional[float]) -> Optional[float]:
         if value is None:
-            return "N/A"
-        return f"{value / 1_000_000:.2f}".replace(".00", "")
+            return None
+        return round(value / 1_000_000, 2)
 
     @staticmethod
     def coifecent(market_cap: Optional[float], volume_24h: Optional[float]) -> Optional[float]:
