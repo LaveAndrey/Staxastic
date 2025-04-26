@@ -7,6 +7,7 @@ from app.config import Config
 import pytz
 from datetime import datetime
 from app.services.common import get_bybit_price, update_price_periodically
+from time import sleep
 
 routersell = APIRouter()
 logger = logging.getLogger(__name__)
@@ -14,20 +15,21 @@ cmc = CoinMarketCapService(api_key=Config.COINMARKETCAP_API_KEY)
 
 SPREADSHEET_ID = Config.ID_TABLES
 update_price_periodically.update_tasks = {}
+SHEETS_API_DELAY = 1.1
+
 
 @routersell.post("/webhooksell")
 async def webhook(request: Request):
     try:
-
         if not hasattr(request.app.state, 'google_sheets'):
             raise HTTPException(status_code=503, detail="Service unavailable")
 
         data = await request.json()
-
         await asyncio.sleep(3)
 
         client = request.app.state.google_sheets
         sheet = client.open_by_key(SPREADSHEET_ID).sheet1
+        sleep(SHEETS_API_DELAY)
 
         ticker = data.get('ticker', 'N/A')
         close = data.get('close', 'N/A')
@@ -58,40 +60,49 @@ async def webhook(request: Request):
             cmc.format_number_m(market_cap),
             cmc.format_number_m(volume_24h),
             coif,
-            'buy',
+            'sell',
             close,
             datetime.now(pytz.timezone('Europe/Moscow')).strftime("%Y-%m-%d %H:%M:%S"),
             *[""] * 20
         ])
+        sleep(SHEETS_API_DELAY)
 
         # Получаем индекс новой строки
         row_index = len(sheet.get_all_values())
+        sleep(SHEETS_API_DELAY)
 
-        # Форматируем коэффициент (столбец D)
+        # Подготовка форматирования
+        format_requests = []
+
         if coif <= 5:
-            sheet.format(f"D{row_index}", {
-                "backgroundColor": {
-                    "red": 0.5,
-                    "green": 0.5,
-                    "blue": 1
-                },
-                "textFormat": {
-                    "bold": True
+            format_requests.append({
+                'range': f"D{row_index}",
+                'format': {
+                    'backgroundColor': {
+                        'red': 0.5,
+                        'green': 0.5,
+                        'blue': 1
+                    },
+                    'textFormat': {
+                        'bold': True
+                    }
                 }
             })
 
-        # Форматирование числовых столбцов
-        sheet.batch_format([
-            {
-                "range": f"B{row_index}:D{row_index}",
-                "format": {
-                    "numberFormat": {
-                        "type": "NUMBER",
-                        "pattern": "#,##0.00"
-                    }
+        format_requests.append({
+            'range': f"B{row_index}:D{row_index}",
+            'format': {
+                'numberFormat': {
+                    'type': 'NUMBER',
+                    'pattern': '#,##0.00'
                 }
             }
-        ])
+        })
+
+        # Применяем форматирование
+        if format_requests:
+            sheet.batch_format(format_requests)
+            sleep(SHEETS_API_DELAY)
 
         task = asyncio.create_task(
             update_price_periodically(sheet, row_index, symbol, float(current_price), "sell")
