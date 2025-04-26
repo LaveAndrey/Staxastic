@@ -76,7 +76,7 @@ async def get_bybit_price(symbol: str) -> float:
         )
 
 
-async def update_price_periodically(sheet, row_index: int, symbol: str, entry_price: float, action: str, col: int):
+async def update_price_periodically(sheet, row_index: int, symbol: str, entry_price: float, action: str):
     """Обновление цен через фиксированные интервалы"""
     moscow_tz = pytz.timezone('Europe/Moscow')
     try:
