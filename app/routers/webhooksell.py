@@ -28,6 +28,8 @@ async def webhook(request: Request):
         sheet = client.open_by_key(SPREADSHEET_ID).sheet1
         data = await request.json()
 
+        await asyncio.sleep(5)
+
         ticker = data.get('ticker', 'N/A')
         close = data.get('close', 'N/A')
         symbol = cmc.extract_symbol(ticker.lower())

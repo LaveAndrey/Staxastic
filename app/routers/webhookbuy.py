@@ -18,7 +18,6 @@ update_price_periodically.update_tasks = {}
 @routerbuy.post("/webhookbuy")
 async def webhook(request: Request):
     try:
-        await asyncio.sleep(5)
 
         if not hasattr(request.app.state, 'google_sheets'):
             raise HTTPException(status_code=503, detail="Service unavailable")
@@ -26,6 +25,8 @@ async def webhook(request: Request):
         client = request.app.state.google_sheets
         sheet = client.open_by_key(SPREADSHEET_ID).sheet1
         data = await request.json()
+
+        await asyncio.sleep(5)
 
         ticker = data.get('ticker', 'N/A')
         close = data.get('close', 'N/A')
