@@ -79,17 +79,28 @@ async def get_bybit_price(symbol: str) -> float:
 async def update_price_periodically(sheet, row_index: int, symbol: str, entry_price: float, action: str):
     """Обновление цен через фиксированные интервалы"""
     moscow_tz = pytz.timezone('Europe/Moscow')
-    intervals = [
-        ('1h', 60 * 60), ('2h', 2 * 60 * 60), ('4h', 4 * 60 * 60),
-        ('8h', 8 * 60 * 60), ('12h', 12 * 60 * 60), ('1d', 24 * 60 * 60),
-        ('3d', 3 * 24 * 60 * 60), ('7d', 7 * 24 * 60 * 60),
-        ('14d', 14 * 24 * 60 * 60), ('30d', 30 * 24 * 60 * 60)
-    ]
-
     try:
-        entry_time = moscow_tz.localize(datetime.strptime(
-            sheet.cell(row_index, 5).value, "%Y-%m-%d %H:%M:%S"
-        ))
+        # Получаем дату и время из правильной колонки (6-я колонка - индекс 5)
+        datetime_str = sheet.cell(row_index, 5).value  # Колонка с датой/временем
+
+        # Проверяем, что значение является строкой с датой
+        if not isinstance(datetime_str, str) or len(datetime_str) < 10:
+            raise ValueError(f"Invalid datetime format: {datetime_str}")
+
+        entry_time = moscow_tz.localize(datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S"))
+
+        intervals = [
+            ('1h', 60 * 60),
+            ('2h', 2 * 60 * 60),
+            ('4h', 4 * 60 * 60),
+            ('8h', 8 * 60 * 60),
+            ('12h', 12 * 60 * 60),
+            ('1d', 24 * 60 * 60),
+            ('3d', 3 * 24 * 60 * 60),
+            ('7d', 7 * 24 * 60 * 60),
+            ('14d', 14 * 24 * 60 * 60),
+            ('30d', 30 * 24 * 60 * 60)
+        ]
 
         for name, delay in intervals:
             try:
@@ -106,7 +117,7 @@ async def update_price_periodically(sheet, row_index: int, symbol: str, entry_pr
                 else:
                     change_pct = ((entry_price - current_price) / entry_price) * 100
 
-                col = 5 + intervals.index((name, delay)) * 2
+                col = 6 + intervals.index((name, delay)) * 2
                 sheet.update_cell(row_index, col, current_price)
                 sheet.update_cell(row_index, col + 1, change_pct / 100)
 
