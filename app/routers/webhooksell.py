@@ -18,6 +18,9 @@ update_price_periodically.update_tasks = {}
 @routersell.post("/webhooksell")
 async def webhook(request: Request):
     try:
+
+        await asyncio.sleep(5)
+
         if not hasattr(request.app.state, 'google_sheets'):
             raise HTTPException(status_code=503, detail="Service unavailable")
 
