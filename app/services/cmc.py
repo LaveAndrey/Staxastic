@@ -114,6 +114,7 @@ class CoinMarketCapService:
             return "0"  # Возвращаем 0 вместо N/A
         return f"{int(value):,}$"
 
+
     @staticmethod
     def format_number_m(value: Optional[float]) -> float:
         """Форматирование в миллионы с защитой от None"""
@@ -131,7 +132,7 @@ class CoinMarketCapService:
             return 0.0
 
         try:
-            return volume_24h / market_cap
+            return round(volume_24h / market_cap, 3)
         except Exception as e:
             logger.error(f"Ошибка расчета коэффициента: {e}")
             return 0.0

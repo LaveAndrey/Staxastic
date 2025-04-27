@@ -47,8 +47,11 @@ async def webhook(request: Request):
 
         coif = cmc.coifecent(market_cap, volume_24h)
 
+        fire_emoji = "🔥 " if coif >= 1 else ""
+
         message = (
-            f"🔴 *SELL*\n\n*{symbol.upper()}*\n\n"
+            f"🔴 *SELL* {fire_emoji}\n\n"
+            f"*{symbol.upper()}*\n\n"
             f"PRICE - *{close}$*\n"
             f"MARKET CAP - *{cmc.format_number(market_cap)}*\n"
             f"24H VOLUME - *{cmc.format_number(volume_24h)}*\n"
@@ -103,7 +106,7 @@ async def webhook(request: Request):
             'format': {
                 'numberFormat': {
                     'type': 'NUMBER',
-                    'pattern': '#,##0.00'
+                    'pattern': '#,##0.000'
                 }
             }
         })
