@@ -120,7 +120,7 @@ class CoinMarketCapService:
         """Форматирование в миллионы с защитой от None"""
         if value is None:
             return 0.0
-        return round(value / 1_000_000, 2)
+        return round(value / 1_000_000, 3)
 
     @staticmethod
     def coifecent(market_cap: Optional[float], volume_24h: Optional[float]) -> float:
