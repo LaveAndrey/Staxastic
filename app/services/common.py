@@ -81,18 +81,35 @@ async def update_price_periodically(sheet, row_index: int, symbol: str, entry_pr
     """Обновление цен через фиксированные интервалы с гарантированным сохранением"""
     moscow_tz = pytz.timezone('Europe/Moscow')
 
-    def log_update_result(response):
-        """Логирование результатов обновления"""
-        if isinstance(response, dict) and 'updatedCells' in response:
-            logger.info(f"Обновлено ячеек: {response['updatedCells']}")
-        else:
-            logger.error(f"Неожиданный ответ от Google Sheets: {response}")
+    async def safe_cell_update(sheet, range_name, value, format_options=None):
+        """Безопасное обновление ячейки с повторными попытками"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                if format_options:
+                    sheet.format(range_name, format_options)
+                    await asyncio.sleep(SHEETS_API_DELAY)
+
+                sheet.update(range_name, [[value]])
+                await asyncio.sleep(SHEETS_API_DELAY)
+                return True
+            except Exception as e:
+                logger.warning(f"Попытка {attempt + 1} не удалась: {str(e)}")
+                if attempt == max_retries - 1:
+                    logger.error(f"Не удалось обновить {range_name} после {max_retries} попыток")
+                    return False
+                await asyncio.sleep(2 ** attempt)  # Экспоненциальная задержка
 
     try:
-
-        # Получаем дату и время
-        datetime_str = sheet.cell(row_index, 7).value
-        sleep(SHEETS_API_DELAY)
+        # Получаем дату и время с проверкой существования строки
+        try:
+            datetime_str = sheet.cell(row_index, 7).value
+            await asyncio.sleep(SHEETS_API_DELAY)
+        except gspread.exceptions.APIError as e:
+            if "exceeds grid limits" in str(e):
+                logger.error(f"Строка {row_index} не существует в таблице")
+                return
+            raise
 
         if not isinstance(datetime_str, str):
             raise ValueError(f"Некорректный формат даты: {datetime_str}")
@@ -116,56 +133,44 @@ async def update_price_periodically(sheet, row_index: int, symbol: str, entry_pr
                     logger.info(f"Ожидание {name} обновления для {symbol} (через {sleep_duration:.0f} сек)")
                     await asyncio.sleep(sleep_duration)
 
-                # Получаем текущую цену
                 current_price = await get_bybit_price(symbol)
                 if entry_price == 0:
                     logger.error("Цена входа равна 0, пропускаем расчет")
                     continue
 
-                # Рассчитываем изменение
-                if action.lower() == 'buy':
-                    change_pct = ((current_price - entry_price) / entry_price) * 100
-                else:
-                    change_pct = ((entry_price - current_price) / entry_price) * 100
+                change_pct = ((current_price - entry_price) / entry_price) * 100 if action.lower() == 'buy' else ((
+                                                                                                                              entry_price - current_price) / entry_price) * 100
+                change_decimal = round(change_pct / 100, 6)
 
-                change_decimal = round(change_pct / 100, 6)  # Оптимально для процентного формата
-
-                # Определяем колонки
                 interval_idx = intervals.index((name, delay))
                 price_col = 8 + interval_idx * 2
                 pct_col = price_col + 1
 
-                # Формируем запросы
                 price_cell = gspread.utils.rowcol_to_a1(row_index, price_col)
                 pct_cell = gspread.utils.rowcol_to_a1(row_index, pct_col)
 
-                # 1. Сначала устанавливаем формат
-                format_response = sheet.format(pct_cell, {
-                    "numberFormat": {
-                        "type": "PERCENT",
-                        "pattern": "#,##0.00%"
-                    },
-                    "backgroundColor": {
-                        "red": 0.5 if change_pct >= 0 else 1,
-                        "green": 1 if change_pct >= 0 else 0.5,
-                        "blue": 0.5
+                # Форматирование и запись с обработкой ошибок
+                format_success = await safe_cell_update(
+                    sheet,
+                    pct_cell,
+                    change_decimal,
+                    {
+                        "numberFormat": {"type": "PERCENT", "pattern": "#,##0.00%"},
+                        "backgroundColor": {
+                            "red": 0.5 if change_pct >= 0 else 1,
+                            "green": 1 if change_pct >= 0 else 0.5,
+                            "blue": 0.5
+                        }
                     }
-                })
-                sleep(SHEETS_API_DELAY)
-                log_update_result(format_response)
+                )
 
-                # 2. Затем обновляем значения
-                update_response = sheet.batch_update([{
-                    'range': price_cell,
-                    'values': [[current_price]]
-                }, {
-                    'range': pct_cell,
-                    'values': [[change_decimal]]
-                }])
-                sleep(SHEETS_API_DELAY)
-                log_update_result(update_response)
+                price_success = await safe_cell_update(sheet, price_cell, current_price)
 
-                logger.info(f"Обновлен {name} для {symbol}: цена {current_price}, изменение {change_pct:.2f}%")
+                if format_success and price_success:
+                    logger.info(
+                        f"Успешно обновлен {name} для {symbol}: цена {current_price}, изменение {change_pct:.2f}%")
+                else:
+                    logger.error(f"Ошибка при обновлении интервала {name}")
 
             except Exception as e:
                 logger.error(f"Ошибка при обновлении интервала {name}: {str(e)}", exc_info=True)
