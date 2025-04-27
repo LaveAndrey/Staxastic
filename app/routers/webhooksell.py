@@ -36,13 +36,23 @@ async def webhook(request: Request):
         symbol = cmc.extract_symbol(ticker.lower())
 
         market_cap, volume_24h = await cmc.get_market_data(symbol)
-        current_price = await get_bybit_price(symbol)
+        # Защита от None значений
+        market_cap = market_cap if market_cap is not None else 0
+        volume_24h = volume_24h if volume_24h is not None else 0
+
+        try:
+            current_price = await get_bybit_price(symbol)
+        except:
+            current_price = 0.0  # Значение по умолчанию при ошибке
+
+        coif = cmc.coifecent(market_cap, volume_24h)
 
         message = (
             f"🔴 *SELL*\n\n*{symbol.upper()}*\n\n"
             f"PRICE - *{close}$*\n"
             f"MARKET CAP - *{cmc.format_number(market_cap)}*\n"
-            f"24H VOLUME - *{cmc.format_number(volume_24h)}*\n\n"
+            f"24H VOLUME - *{cmc.format_number(volume_24h)}*\n"
+            f"TVMCR - *{coif}*"
         )
 
         try:
@@ -52,14 +62,13 @@ async def webhook(request: Request):
             logger.error(f"Failed to send Telegram message: {e}")
             raise HTTPException(status_code=500, detail="Failed to send notification")
 
-        coif = cmc.coifecent(market_cap, volume_24h)
 
         # Добавляем новую строку с данными
         sheet.append_row([
             symbol.upper(),
-            cmc.format_number_m(market_cap),
-            cmc.format_number_m(volume_24h),
-            coif,
+            cmc.format_number_m(market_cap) if market_cap else 0,
+            cmc.format_number_m(volume_24h) if volume_24h else 0,
+            coif if coif is not None else 0,
             'sell',
             close,
             datetime.now(pytz.timezone('Europe/Moscow')).strftime("%Y-%m-%d %H:%M:%S"),
@@ -74,7 +83,7 @@ async def webhook(request: Request):
         # Подготовка форматирования
         format_requests = []
 
-        if coif <= 5:
+        if coif >= 1:
             format_requests.append({
                 'range': f"D{row_index}",
                 'format': {

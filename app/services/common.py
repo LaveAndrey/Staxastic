@@ -80,6 +80,9 @@ async def get_bybit_price(symbol: str) -> float:
 async def update_price_periodically(sheet, row_index: int, symbol: str, entry_price: float, action: str):
     """Обновление цен через фиксированные интервалы с гарантированным сохранением"""
     moscow_tz = pytz.timezone('Europe/Moscow')
+    if entry_price == 0:
+        logger.warning("Цена входа равна 0, устанавливаем минимальную")
+        entry_price = 0.000001  # Минимальное значение чтобы избежать деления на 0
 
     async def safe_cell_update(sheet, range_name, value, format_options=None):
         """Безопасное обновление ячейки с повторными попытками"""

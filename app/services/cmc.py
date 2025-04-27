@@ -109,29 +109,29 @@ class CoinMarketCapService:
 
     @staticmethod
     def format_number(value: Optional[float]) -> str:
-        """Форматирует числа с разделителями"""
+        """Форматирование чисел с защитой от None"""
         if value is None:
-            return "N/A"
-
-        # Преобразуем в целое число (отбрасываем дробную часть)
-        int_value = int(value)
-
-        # Форматируем с разделителями тысяч
-        return f"{int_value:,}$"  # Добавляем знак доллара
+            return "0"  # Возвращаем 0 вместо N/A
+        return f"{int(value):,}$"
 
     @staticmethod
-    def format_number_m(value: Optional[float]) -> Optional[float]:
+    def format_number_m(value: Optional[float]) -> float:
+        """Форматирование в миллионы с защитой от None"""
         if value is None:
-            return None
+            return 0.0
         return round(value / 1_000_000, 2)
 
     @staticmethod
-    def coifecent(market_cap: Optional[float], volume_24h: Optional[float]) -> Optional[float]:
-        if None in (market_cap, volume_24h) or volume_24h == 0:
-            return None
+    def coifecent(market_cap: Optional[float], volume_24h: Optional[float]) -> float:
+        """Расчет коэффициента с защитой от нулевых значений"""
+        if market_cap is None or volume_24h is None:
+            return 0.0  # Возвращаем 0 вместо None
+
+        if market_cap == 0 or volume_24h == 0:
+            return 0.0
 
         try:
-            return market_cap / volume_24h
+            return volume_24h / market_cap
         except Exception as e:
             logger.error(f"Ошибка расчета коэффициента: {e}")
-            return None
+            return 0.0
